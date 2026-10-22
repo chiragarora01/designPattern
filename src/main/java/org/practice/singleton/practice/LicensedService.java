@@ -5,32 +5,51 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * TASK: make this a singleton that survives BOTH serialization and reflection.
- * Type every TODO yourself. Don't open singleton2 until you're stuck.
  *
  * Recall the mental model: serialization is a constructor-free copy machine;
  * readResolve is your one chance to say "throw that copy away, use this instead".
+ *
+ * DONE: serialVersionUID, volatile instance, DCL accessor, reflection guard.
+ * LEFT: TODO 6 (readResolve).
  */
 public class LicensedService implements Serializable {
 
-    // TODO 2: the version stamp field. What breaks on readObject if you
-    //         add a field later and never declared this?
+    private static final long serialVersionUID = 2L;
 
-    // TODO 3: the one instance. Which keyword makes double-checked locking
-    //         safe, and what specifically does it prevent? (Say it out loud before typing.)
+    private static volatile LicensedService licensedService;
 
     // state this singleton protects
     private final AtomicInteger activations = new AtomicInteger();
 
-    // TODO 4: private constructor + the reflection guard.
-    //         HINT: serialization NEVER runs this method — reflection ALWAYS does.
-    //         Why does the guard pass on the FIRST legit call but block every later one?
+    // reflection guard: the constructor runs BEFORE the instance is assigned on the
+    // happy path, so this passes exactly once — every later construction throws.
+    // (Serialization never runs this method; that hole is closed by readResolve.)
 
-    // TODO 5: public accessor with correct double-checked locking:
-    //         outer check -> lock -> inner check -> assign.
-    //         Which two things is the inner check protecting against?
+    private LicensedService() {
+        if (licensedService != null) {
+            throw new IllegalStateException("Use getIdGenerator()");
+        }
+    }
 
-    // TODO 6: the serialization hook. Exact signature? Why private?
-    //         Why return the accessor instead of the field directly?
+    public static LicensedService getLicensedService() {
+        if (licensedService == null) {
+            synchronized (LicensedService.class) {
+                if (licensedService == null) {
+                    licensedService = new LicensedService();
+                }
+            }
+        }
+        return licensedService;
+    }
+
+    // TODO 6 (FIX): getLicensedServiceSerial is never called by the JVM —
+    //               the hook is matched by EXACT signature: private Object readResolve().
+    //               Rename it and make it private.
+    //               Why return the accessor instead of the field directly?
+
+    public Object getLicensedServiceSerial() {
+        return getLicensedService();
+    }
 
     public int activate() {
         return activations.incrementAndGet();
